@@ -24,56 +24,72 @@ SETEO
 ;====================================================================
     ;Seteo de puertos
 ;====================================================================
-    
-    BANKSEL PORTA
-    CLRF    TRISC		;Seteo puerto C como salida (leds)
-    MOVLW   b'00000001'		
-    MOVWF    TRISA,1		;Seteo RA0 como entrada
-    BSF	    STATUS, RP1
-    BSF	    STATUS, RP0		; Banco 11:3
-    CLRF    ANSELH		; Se setea puerto B como digital 
-    MOVLW   b'00000001'
-    MOVWF    ANSEL,1		; Seteo RA0 como entrada analogica
+	BANKSEL 	PORTA
+	CLRF    	TRISC		;Seteo puerto C como salida (leds)
+	MOVLW   	b'00000001'		
+	MOVWF    	TRISA,1		;Seteo RA0 como entrada
+	BSF	    	STATUS, RP1
+	BSF	    	STATUS, RP0	; Banco 11:3
+	CLRF    	ANSELH		; Se setea puerto B como digital 
+	MOVLW   	b'00000001'
+	MOVWF    	ANSEL,1		; Seteo RA0 como entrada analogica
     
 ;====================================================================
-    ;seteo del ADC
+    ;Configuro del ADC
 ;====================================================================
-    BANKSEL	ADCON1
-    BCF		ADCON1,ADFM	; Resultado justificado a la izquierda
-    BCF		ADCON1,VCFG0	; Seteo Vref+ como Vdd
-    BCF		ADCON1,VCFG1	; Seteo Vref- como fuente interna (masa)
-    BANKSEL	ADCON0
-    BCF		ADCON0,CHS0	; Selecciono como canal de entrada
-    BCF		ADCON0,CHS1	; para el ADC el pin ANS0 (RA0)
-    BCF		ADCON0,CHS2
-    BCF		ADCON0,CHS3
-    BSF		ADCON0,ADCS0	; Selecciono Frc como clock del ADC
-    BSF		ADCON0,ADCS1	; Pone el que te parezca, no vamos a usar sleep asi q elegi
-    BSF		ADCON0,ADON	; Activo el m�dulo ADC
+	BANKSEL	    ADCON1
+	BCF	    ADCON1,ADFM		; Resultado justificado a la izquierda
+	BCF	    ADCON1,VCFG0	; Seteo Vref+ como Vdd
+	BCF	    ADCON1,VCFG1	; Seteo Vref- como fuente interna (masa)
+	BANKSEL	    ADCON0
+	BCF	    ADCON0,CHS0		; Selecciono como canal de entrada
+	BCF	    ADCON0,CHS1		; para el ADC el pin ANS0 (RA0)
+	BCF	    ADCON0,CHS2
+	BCF	    ADCON0,CHS3
+	BSF	    ADCON0,ADCS0	; Selecciono Frc como clock del ADC
+	BSF	    ADCON0,ADCS1	; Pone el que te parezca, no vamos a usar sleep asi q elegi
+	BSF	    ADCON0,ADON		; Activo el modulo ADC
  
 ;====================================================================
-    ;Seteo TMR0
+    ;Configuro TMR0
 ;====================================================================
-    BANKSEL	OPTION_REG
-    BCF		OPTION_REG,5	; TOCS = 0  Utilizo el clock interno
-    BCF		OPTION_REG,4	; TOSE = 0  Activo por flanco de subida
-    BCF		OPTION_REG,3	; PSA = 0   Activo el prescaler para TMR0
-    BSF		OPTION_REG,2	; CONFIGURO EL PRESCALER 1:256
-    BSF		OPTION_REG,1	; TMR=61 da 50ms, 10 veces, 0,5s
-    BSF		OPTION_REG,0	; 
+	BANKSEL	    OPTION_REG
+	BCF	    OPTION_REG,T0CS	; TOCS = 0  Utilizo el clock interno
+	BCF	    OPTION_REG,T0SE	; TOSE = 0  Activo por flanco de subida
+	BCF	    OPTION_REG,PSA	; PSA = 0   Activo el prescaler para TMR0
+	BSF	    OPTION_REG,PS2	; CONFIGURO EL PRESCALER 1:256
+	BSF	    OPTION_REG,PS1	; TMR=61 da 50ms, 10 veces, 0,5s
+	BSF	    OPTION_REG,PS0	;
    
 ;====================================================================
     ;IE
 ;====================================================================
-    BANKSEL	PIE1
-    BSF		PIE1,ADIE	; Habilito las int por Receptor ADC
-    BSF		INTCON,PEIE	; Habilito las int por Perif�ricos
-    BSF		INTCON,GIE	; Habilito las int Globales
+	BANKSEL	    PIE1
+	BSF	    PIE1,ADIE		; Habilito las int por Receptor ADC
+	BSF	    INTCON,PEIE		; Habilito las int por Perifericos
+	BANKSEL	    PIR1
+	BCF	    PIR1, ADIF		; Limpio flag de int de ADC
+    
+;====================================================================
+    ;Inicializacon variables de control
+;====================================================================
+	CLRF	    CONDICION		; Establezco condicion en cero (Aun no hay dato para procesar)
+	MOVLW	    D'01'		
+        MOVWF	    CONDEUSAR		; Establezco condicion de eusar en uno (Listo para usar)
+        MOVLW	    D'61'
+        MOVWF	    TMR0		; Cargo el valor de TMR0
+        BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
+        BSF	    INTCON,GIE		; Habilito las int Globales
+    
+
     
 PROGRAMA
 	BTFSS	    CONDICION
 	GOTO	    $-1
 	
+;====================================================================
+    ;Calculo la cantidad de leds a encender
+;====================================================================
 ACTLEDS
 	CLRF	    CONDICION
 	CLRF	    CANTLED
@@ -143,12 +159,20 @@ TABLA
 	RETLW	    B'00111111'
 	RETLW	    B'01111111'
 	RETLW	    B'11111111'
+
 	
+;====================================================================
+    ;Subrutina de interrupcion
+;====================================================================
 INTERRUPCION
 	MOVWF	    W_TEMP		; MOVWF no modifica STATUS. GUARDO CONTEXTO
 	SWAPF	    STATUS, W		; SWAPF para mover f a W sin modificar STATUS
 	MOVWF	    STATUS_TEMP		; Se guarda contexto: STATUS
 	
+	BTFSC	    INTCON,T0IF		; Interrumpió TIMER0?
+	CALL	    ISTIMER		; Si T0IF está en 1 fue TIMER0 y llamo a ISTIMER
+	BTFSC	    INTCON,ADIF		; Interrumpió ADC?
+	CALL	    ISADC		; Si ADIF está en 1 fue ADC y llamo a ISADC
 	BTFSC	    INTCON,T0IF		; Interrumpió TIMER0?
 	CALL	    ISTIMER		; Si T0IF está en 1 fue TIMER0 y llamo a ISTIMER
 	
@@ -160,6 +184,8 @@ INTERRUPCION
 	
 ISTIMER
 	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
+	MOVLW	    D'61'
+	MOVWF	    TMR0
 	INCF	    CONTADOR,F
 	MOVLW	    D'10'
 	SUBWF	    CONTADOR,W
@@ -170,3 +196,10 @@ ISTIMER
 	RETURN
 	
 ISADC
+	BCF	    PIR1, ADIF		; Limpio flag de int de ADC
+	MOVLW	    D'61'
+	MOVWF	    TMR0
+	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
+	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
+	BTFSS	    CONDEUSAR		; Si CONDEUSAR es 1 esta listo para iniciar transferencia
+	RETURN
