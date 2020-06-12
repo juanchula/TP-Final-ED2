@@ -9,6 +9,8 @@ FSR_TEMP    EQU	    0x22
 CONDICION   EQU	    0x23
 CANTLED     EQU	    0x24
 RESULTADO   EQU	    0x25
+CONDEUSAR   EQU	    0x26
+CONTADOR    EQU	    0x27
 	    
 org	0x00
 goto	SETEO
@@ -17,7 +19,6 @@ org	0x4
 goto	INTERRUPCION
 	
 org	0x5
-   
 SETEO   
     
 ;====================================================================
@@ -156,3 +157,16 @@ INTERRUPCION
 	SWAPF	    W_TEMP, F
 	SWAPF	    W_TEMP, W
 	RETFIE
+	
+ISTIMER
+	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
+	INCF	    CONTADOR,F
+	MOVLW	    D'10'
+	SUBWF	    CONTADOR,W
+	BTFSS	    STATUS,Z
+	RETURN
+	BSF	    ADCON0,GO		; Se inicia la convercion
+	BCF	    INTCON,T0IE 	; Se deshabilita interrupción por desbordamiento de TIMER0
+	RETURN
+	
+ISADC
