@@ -11,6 +11,9 @@ CANTLED     EQU	    0x24
 RESULTADO   EQU	    0x25
 CONDEUSAR   EQU	    0x26
 CONTADOR    EQU	    0x27
+NUM	    EQU	    0x28
+CONTAUX	    EQU	    0x29
+FLAG	    EQU	    0x30
 	    
 org	0x00
 goto	SETEO
@@ -91,63 +94,40 @@ PROGRAMA
     ;Calculo la cantidad de leds a encender
 ;====================================================================
 ACTLEDS
-	CLRF	    CONDICION
-	CLRF	    CANTLED
-	
-	MOVLW	    D'28'
-	SUBWF	    RESULTADO,W
-	BTFSS	    STATUS,C
-	GOTO	    MOSTRARLED
-	INCF	    CANTLED,F
-	
-	MOVLW	    D'56'
-	SUBWF	    RESULTADO,W
-	BTFSS	    STATUS,C
-	GOTO	    MOSTRARLED
-	INCF	    CANTLED,F
-	
-	MOVLW	    D'84'
-	SUBWF	    RESULTADO,W
-	BTFSS	    STATUS,C
-	GOTO	    MOSTRARLED
-	INCF	    CANTLED,F
-	
-	MOVLW	    D'112'
-	SUBWF	    RESULTADO,W
-	BTFSS	    STATUS,C
-	GOTO	    MOSTRARLED
-	INCF	    CANTLED,F
-	
-	MOVLW	    D'140'
-	SUBWF	    RESULTADO,W
-	BTFSS	    STATUS,C
-	GOTO	    MOSTRARLED
-	INCF	    CANTLED,F
-	
-	MOVLW	    D'168'
-	SUBWF	    RESULTADO,W
-	BTFSS	    STATUS,C
-	GOTO	    MOSTRARLED
-	INCF	    CANTLED,F
-	
-	MOVLW	    D'196'
-	SUBWF	    RESULTADO,W
-	BTFSS	    STATUS,C
-	GOTO	    MOSTRARLED
-	INCF	    CANTLED,F
-	
-	MOVLW	    D'224'
-	SUBWF	    RESULTADO,W
-	BTFSS	    STATUS,C
-	GOTO	    MOSTRARLED
-	INCF	    CANTLED,F
-	
+	CLRF	    CONDICION		; Se limpia la condicion (No hay datos nuevos)
+	CLRF	    CANTLED		; Se establece la cantidad de led encenido en cero
+	CLRF	    NUM			; Se limpia el numero de referencia
+	MOVLW	    D'08'
+	MOVWF	    CONTAUX		; Se carga el bucle con 8
+SUMAR
+	MOVLW	    D'28'		; Se suma 28 al numero de referencia
+	ADDWF	    NUM,F		; Esto se debe a que se tiene 9 valores posibles (256/9)
+	MOVF	    NUM,W
+	CALL	    AUX			; Se carga W con valor de num y se llama a la subrutina AUX
+	MOVWF	    FLAG
+	BTFSS	    FLAG,0		; Se verifica si se debe seguir intentado sumar leds
+	GOTO	    MOSTRARLED		; Si no es necesario se prenden los leds correspondientes
+	DECFSZ	    CONTAUX		; Caso contrario, se decrementa CONTAUX y si no da cero se vuelve a iterar
+	GOTO	    SUMAR
+
+; Actualiza el valor de PORTD y vuelve al programa principal
 MOSTRARLED
 	MOVF	    CANTLED,W
 	CALL	    TABLA
 	MOVWF	    PORTD
 	GOTO	    PROGRAMA
-	
+
+; AUX: Se encarga de comparar el resultado del ADC con el valor de referencia y
+; se aumenta la cantidad de led si resultado >= referencia.
+; Se retorna 0 si no se sumo un led y 1 si se sumo un led
+AUX
+	SUBWF	    RESULTADO,W
+	BTFSS	    STATUS,C
+	RETLW	    D'00'
+	INCF	    CANTLED,F
+	RETLW	    D'01'
+
+; Codifica la cantidad de leds que se debe mostrar, en el valor que se le debe dar a PORTD
 TABLA
 	ADDWF	    PCL,F		; suma a PC el valor del dígito
 	RETLW	    B'00000000'
@@ -187,19 +167,19 @@ ISTIMER
 	INCF	    CONTADOR,F
 	MOVLW	    D'3'
 	SUBWF	    CONTADOR,W
-	BTFSS	    STATUS,Z
-	RETURN
-	CLRF	    CONTADOR
-	BSF	    ADCON0,GO		; Se inicia la convercion
-	BCF	    INTCON,T0IE 	; Se deshabilita interrupción por desbordamiento de TIMER0
+	BTFSS	    STATUS,Z		; ¿Se realizo 10 timer0?
+	RETURN				; Si aun no se realizo 10 iteracionde seguidasd de timer0 se retorna
+	CLRF	    CONTADOR		; Si no se reinicia el contador,
+	BSF	    ADCON0,GO		; se inicia la convercion y
+	BCF	    INTCON,T0IE 	; se deshabilita interrupción por desbordamiento de TIMER0
 	RETURN
 	
 ISADC
-	BCF	    PIR1, ADIF		; Limpio flag de int de ADC
+	BCF	    PIR1, ADIF		; Se limpia el flag de int de ADC
 	MOVF	    ADRESH,W
 	MOVWF	    RESULTADO		; Movemos el valor obtenido a resultado
 	MOVLW	    D'01'
-	MOVWF	    CONDICION		; Seteo condicion en 1 (Nuevo valor a procesar)
+	MOVWF	    CONDICION		; Se setea  condicion en 1 (Nuevo valor a procesar)
 	MOVLW	    D'61'
 	MOVWF	    TMR0
 	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
