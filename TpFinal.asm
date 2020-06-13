@@ -11,7 +11,6 @@ CANTLED     EQU	    0x24
 RESULTADO   EQU	    0x25
 CONDEUSAR   EQU	    0x26
 CONTADOR    EQU	    0x27
-LED	    EQU	    0x28
 	    
 org	0x00
 goto	SETEO
@@ -25,13 +24,13 @@ SETEO
 ;====================================================================
     ;Seteo de puertos
 ;====================================================================
-	BANKSEL 	TRISD
-	CLRF    	TRISD		;Seteo puerto C como salida (leds)
-	MOVLW   	b'00000001'		
-	MOVWF    	TRISA		;Seteo RA0 como entrada
-	BSF	    	STATUS, RP1
-	BSF	    	STATUS, RP0	; Banco 11:3
-	BSF     	ANSEL,	ANS0	; Seteo RA0 como entrada analogical 	
+	BANKSEL	    TRISD
+	CLRF	    TRISD		;Seteo puerto C como salida (leds)
+	MOVLW	    b'00000001'		
+	MOVWF	    TRISA		;Seteo RA0 como entrada
+	BSF	    STATUS, RP1
+	BSF	    STATUS, RP0		; Banco 11:3
+	BSF	    ANSEL,ANS0		; Seteo RA0 como entrada analogical 	
     
 ;====================================================================
     ;Configuro del ADC
@@ -64,7 +63,7 @@ SETEO
     ;IE
 ;====================================================================
 	BANKSEL	    PIE1
-	BCF	    PIE1,ADIE		; Deshabilito las int por Receptor ADC
+	BSF	    PIE1,ADIE		; Habilito las int por Receptor ADC
 	BSF	    INTCON,PEIE		; Habilito las int por Perifericos
 	BANKSEL	    PIR1
 	BCF	    PIR1, ADIF		; Limpio flag de int de ADC
@@ -111,7 +110,7 @@ ACTLEDS
 	SUBWF	    RESULTADO,W
 	BTFSS	    STATUS,C
 	GOTO	    MOSTRARLED
-	INCF	    LED,F
+	INCF	    CANTLED,F
 	
 	MOVLW	    D'112'
 	SUBWF	    RESULTADO,W
@@ -144,7 +143,7 @@ ACTLEDS
 	INCF	    CANTLED,F
 	
 MOSTRARLED
-	MOVF	    CANTLED,F
+	MOVF	    CANTLED,W
 	CALL	    TABLA
 	MOVWF	    PORTD
 	GOTO	    PROGRAMA
@@ -172,7 +171,7 @@ INTERRUPCION
 	
 	BTFSC	    INTCON,T0IF		; Interrumpió TIMER0?
 	CALL	    ISTIMER		; Si T0IF está en 1 fue TIMER0 y llamo a ISTIMER
-	BTFSC	    INTCON,ADIF		; Interrumpió ADC?
+	BTFSC	    PIR1,ADIF		; Interrumpió ADC?
 	CALL	    ISADC		; Si ADIF está en 1 fue ADC y llamo a ISADC
 	
 	SWAPF	    STATUS_TEMP, W	; Se recupera el contexto
@@ -186,20 +185,17 @@ ISTIMER
 	MOVLW	    D'61'
 	MOVWF	    TMR0
 	INCF	    CONTADOR,F
-	MOVLW	    D'10'
+	MOVLW	    D'3'
 	SUBWF	    CONTADOR,W
 	BTFSS	    STATUS,Z
 	RETURN
+	CLRF	    CONTADOR
 	BSF	    ADCON0,GO		; Se inicia la convercion
-	BSF	    PIE1,ADIE		; Habilito las int por Receptor ADC
 	BCF	    INTCON,T0IE 	; Se deshabilita interrupción por desbordamiento de TIMER0
 	RETURN
 	
 ISADC
 	BCF	    PIR1, ADIF		; Limpio flag de int de ADC
-	BANKSEL	    PIE1
-	BCF	    PIE1,ADIE		; Deshabilito las int por Receptor ADC
-	BANKSEL	    PORTD
 	MOVF	    ADRESH,W
 	MOVWF	    RESULTADO		; Movemos el valor obtenido a resultado
 	MOVLW	    D'01'
@@ -208,10 +204,10 @@ ISADC
 	MOVWF	    TMR0
 	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
 	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
-	BTFSS	    CONDEUSAR,0		; Si CONDEUSAR es 1 esta listo para iniciar transferencia
+	;BTFSS	    CONDEUSAR,0		; Si CONDEUSAR es 1 esta listo para iniciar transferencia
 	RETURN
-	CLRF	    CONDEUSAR
+	;CLRF	    CONDEUSAR
 	;MOVWF	    TXREG
-	RETURN
+	;RETURN
 	
 END
