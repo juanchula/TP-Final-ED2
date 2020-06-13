@@ -11,6 +11,7 @@ CANTLED     EQU	    0x24
 RESULTADO   EQU	    0x25
 CONDEUSAR   EQU	    0x26
 CONTADOR    EQU	    0x27
+LED	    EQU	    0x28
 	    
 org	0x00
 goto	SETEO
@@ -24,15 +25,13 @@ SETEO
 ;====================================================================
     ;Seteo de puertos
 ;====================================================================
-	BANKSEL 	PORTA
-	CLRF    	TRISC		;Seteo puerto C como salida (leds)
+	BANKSEL 	TRISD
+	CLRF    	TRISD		;Seteo puerto C como salida (leds)
 	MOVLW   	b'00000001'		
-	MOVWF    	TRISA,1		;Seteo RA0 como entrada
+	MOVWF    	TRISA		;Seteo RA0 como entrada
 	BSF	    	STATUS, RP1
 	BSF	    	STATUS, RP0	; Banco 11:3
-	CLRF    	ANSELH		; Se setea puerto B como digital 
-	MOVLW   	b'00000001'
-	MOVWF    	ANSEL,1		; Seteo RA0 como entrada analogica
+	BSF     	ANSEL,	ANS0	; Seteo RA0 como entrada analogical 	
     
 ;====================================================================
     ;Configuro del ADC
@@ -47,7 +46,7 @@ SETEO
 	BCF	    ADCON0,CHS2
 	BCF	    ADCON0,CHS3
 	BSF	    ADCON0,ADCS0	; Selecciono Frc como clock del ADC
-	BSF	    ADCON0,ADCS1	; Pone el que te parezca, no vamos a usar sleep asi q elegi
+	BCF	    ADCON0,ADCS1	; Fosc/8
 	BSF	    ADCON0,ADON		; Activo el modulo ADC
  
 ;====================================================================
@@ -65,7 +64,7 @@ SETEO
     ;IE
 ;====================================================================
 	BANKSEL	    PIE1
-	BSF	    PIE1,ADIE		; Habilito las int por Receptor ADC
+	BCF	    PIE1,ADIE		; Deshabilito las int por Receptor ADC
 	BSF	    INTCON,PEIE		; Habilito las int por Perifericos
 	BANKSEL	    PIR1
 	BCF	    PIR1, ADIF		; Limpio flag de int de ADC
@@ -73,18 +72,20 @@ SETEO
 ;====================================================================
     ;Inicializacon variables de control
 ;====================================================================
+	CLRF	    PORTD
 	CLRF	    CONDICION		; Establezco condicion en cero (Aun no hay dato para procesar)
 	MOVLW	    D'01'		
         MOVWF	    CONDEUSAR		; Establezco condicion de eusar en uno (Listo para usar)
         MOVLW	    D'61'
         MOVWF	    TMR0		; Cargo el valor de TMR0
+	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
         BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
         BSF	    INTCON,GIE		; Habilito las int Globales
     
 
     
 PROGRAMA
-	BTFSS	    CONDICION
+	BTFSS	    CONDICION,0
 	GOTO	    $-1
 	
 ;====================================================================
@@ -145,7 +146,7 @@ ACTLEDS
 MOSTRARLED
 	MOVF	    CANTLED,F
 	CALL	    TABLA
-	MOVWF	    PORTC
+	MOVWF	    PORTD
 	GOTO	    PROGRAMA
 	
 TABLA
@@ -173,8 +174,6 @@ INTERRUPCION
 	CALL	    ISTIMER		; Si T0IF está en 1 fue TIMER0 y llamo a ISTIMER
 	BTFSC	    INTCON,ADIF		; Interrumpió ADC?
 	CALL	    ISADC		; Si ADIF está en 1 fue ADC y llamo a ISADC
-	BTFSC	    INTCON,T0IF		; Interrumpió TIMER0?
-	CALL	    ISTIMER		; Si T0IF está en 1 fue TIMER0 y llamo a ISTIMER
 	
 	SWAPF	    STATUS_TEMP, W	; Se recupera el contexto
 	MOVWF	    STATUS
@@ -192,14 +191,27 @@ ISTIMER
 	BTFSS	    STATUS,Z
 	RETURN
 	BSF	    ADCON0,GO		; Se inicia la convercion
+	BSF	    PIE1,ADIE		; Habilito las int por Receptor ADC
 	BCF	    INTCON,T0IE 	; Se deshabilita interrupción por desbordamiento de TIMER0
 	RETURN
 	
 ISADC
 	BCF	    PIR1, ADIF		; Limpio flag de int de ADC
+	BANKSEL	    PIE1
+	BCF	    PIE1,ADIE		; Deshabilito las int por Receptor ADC
+	BANKSEL	    PORTD
+	MOVF	    ADRESH,W
+	MOVWF	    RESULTADO		; Movemos el valor obtenido a resultado
+	MOVLW	    D'01'
+	MOVWF	    CONDICION		; Seteo condicion en 1 (Nuevo valor a procesar)
 	MOVLW	    D'61'
 	MOVWF	    TMR0
 	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
 	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
-	BTFSS	    CONDEUSAR		; Si CONDEUSAR es 1 esta listo para iniciar transferencia
+	BTFSS	    CONDEUSAR,0		; Si CONDEUSAR es 1 esta listo para iniciar transferencia
 	RETURN
+	CLRF	    CONDEUSAR
+	;MOVWF	    TXREG
+	RETURN
+	
+END
