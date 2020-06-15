@@ -8,14 +8,14 @@ STATUS_TEMP EQU	    0x21
 FSR_TEMP    EQU	    0x22
 CONDICION   EQU	    0x23
 CANTLED     EQU	    0x24
-RESULTADO   EQU	    0x25
-CONDEUSAR   EQU	    0x26
 CONTADOR    EQU	    0x27
 NUM	    EQU	    0x28
 CONTAUX	    EQU	    0x29
 FLAG	    EQU	    0x30
-DECENAS	    EQU	    0x31
-CENTENAS    EQU	    0x32
+CENTENAS    EQU	    0x31
+DECENAS	    EQU	    0x32
+RESULTADO   EQU	    0x33
+ESPACIO	    EQU	    0x34
 	    
 org	0x00
 goto	SETEO
@@ -89,10 +89,10 @@ SETEO
 ;====================================================================
     ;Inicializacon variables de control
 ;====================================================================
+	MOVLW	    0x0A
+	MOVWF	    ESPACIO
 	CLRF	    PORTD
 	CLRF	    CONDICION		; Se setea condicion en cero (Aun no hay dato para procesar)
-	MOVLW	    D'01'		
-        MOVWF	    CONDEUSAR		; Se setea condicion de eusar en uno (Listo para usar)
         MOVLW	    D'61'
         MOVWF	    TMR0		; Se carga el valor de TMR0
 	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
@@ -100,7 +100,6 @@ SETEO
         BSF	    INTCON,GIE		; Se habilita las interrupciones Globales
     
 
-    
 PROGRAMA
 	BTFSS	    CONDICION,0
 	GOTO	    $-1
@@ -147,38 +146,19 @@ AUMDEC
 	ADDWF	    DECENAS
 	BTFSC	    FLAG,0
 	GOTO	    AUMDEC
-	BSF	    STATUS, RP0		;banco 1
-	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
-	GOTO	    $-1
-	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
-	MOVF	    CENTENAS,W
-	ADDLW	    0x30
-	MOVWF	    TXREG
-	BSF	    STATUS, RP0		;banco 1
-	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
-	GOTO	    $-1
-	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
-	MOVF	    DECENAS,W
-	ADDLW	    0x30
-	MOVWF	    TXREG
-	BSF	    STATUS, RP0		;banco 1
-	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
-	GOTO	    $-1
-	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
-	MOVF	    RESULTADO,W
-	ADDLW	    0x30
-	MOVWF	    TXREG
-	BSF	    STATUS, RP0		;banco 1
-	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
-	GOTO	    $-1
-	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
-	MOVLW	    0x20
-	MOVWF	    TXREG
-	BSF	    STATUS, RP0		;banco 1
-	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
-	GOTO	    $-1
-	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
-
+	MOVLW	    0x30
+	ADDWF	    CENTENAS,F
+	ADDWF	    DECENAS,F
+	ADDWF	    RESULTADO,F
+	MOVLW	    CENTENAS
+	MOVWF	    FSR
+	MOVLW	    D'04'
+	MOVWF	    CONTAUX		; Se carga el bucle con 4
+BUCSEND
+	CALL	    SEND
+	INCF	    FSR
+	DECFSZ	    CONTAUX
+	GOTO	    BUCSEND
 	GOTO	    PROGRAMA
 
 ; AUX: Se encarga de comparar el resultado del ADC con el valor de referencia y
@@ -198,6 +178,15 @@ AUX2
 	MOVWF	    RESULTADO
 	RETLW	    D'01'
 
+SEND
+	MOVF	    INDF,W
+	MOVWF	    TXREG
+	BSF	    STATUS, RP0		;banco 1
+	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
+	GOTO	    $-1
+	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
+	RETURN
+
 ; Codifica la cantidad de leds que se debe mostrar, en el valor que se le debe dar a PORTD
 TABLA
 	ADDWF	    PCL,F		; suma a PC el valor del dígito
@@ -210,8 +199,6 @@ TABLA
 	RETLW	    B'00111111'
 	RETLW	    B'01111111'
 	RETLW	    B'11111111'
-	
-
 	
 ;====================================================================
     ;Subrutina de interrupcion
@@ -239,7 +226,7 @@ ISTIMER
 	MOVLW	    D'61'
 	MOVWF	    TMR0
 	INCF	    CONTADOR,F
-	MOVLW	    D'15'
+	MOVLW	    D'4'
 	SUBWF	    CONTADOR,W
 	BTFSS	    STATUS,Z		; ¿Se realizo 10 timer0?
 	RETURN				; Si aun no se realizo 10 iteracionde seguidasd de timer0 se retorna
@@ -258,7 +245,5 @@ ISADC
 	MOVWF	    TMR0
 	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
 	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
-	RETURN
-
-	
+	RETURN	
 END
