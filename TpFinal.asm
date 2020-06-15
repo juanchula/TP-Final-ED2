@@ -25,64 +25,77 @@ org	0x5
 SETEO   
     
 ;====================================================================
-    ;Seteo de puertos
+    ;Se setea de puertos
 ;====================================================================
 	BANKSEL	    TRISD
-	CLRF	    TRISD		;Seteo puerto C como salida (leds)
+	CLRF	    TRISD		; Se setea puerto C como salida (leds)
 	MOVLW	    b'00000001'		
-	MOVWF	    TRISA		;Seteo RA0 como entrada
+	MOVWF	    TRISA		; Se setea RA0 como entrada
 	BSF	    STATUS, RP1
 	BSF	    STATUS, RP0		; Banco 11:3
-	BSF	    ANSEL,ANS0		; Seteo RA0 como entrada analogical 	
+	BSF	    ANSEL,ANS0		; Se setea RA0 como entrada analogical 	
     
 ;====================================================================
-    ;Configuro del ADC
+    ; Se configura del ADC
 ;====================================================================
 	BANKSEL	    ADCON1
 	BCF	    ADCON1,ADFM		; Resultado justificado a la izquierda
-	BCF	    ADCON1,VCFG0	; Seteo Vref+ como Vdd
-	BCF	    ADCON1,VCFG1	; Seteo Vref- como fuente interna (masa)
+	BCF	    ADCON1,VCFG0	; Se setea Vref+ como Vdd
+	BCF	    ADCON1,VCFG1	; Se setea Vref- como fuente interna (masa)
 	BANKSEL	    ADCON0
-	BCF	    ADCON0,CHS0		; Selecciono como canal de entrada
+	BCF	    ADCON0,CHS0		; Se selecciona como canal de entrada
 	BCF	    ADCON0,CHS1		; para el ADC el pin ANS0 (RA0)
 	BCF	    ADCON0,CHS2
 	BCF	    ADCON0,CHS3
-	BSF	    ADCON0,ADCS0	; Selecciono Frc como clock del ADC
+	BSF	    ADCON0,ADCS0	; Se selecciona Frc como clock del ADC
 	BCF	    ADCON0,ADCS1	; Fosc/8
-	BSF	    ADCON0,ADON		; Activo el modulo ADC
+	BSF	    ADCON0,ADON		; Se activa el modulo ADC
  
 ;====================================================================
-    ;Configuro TMR0
+    ; Se configura TMR0
 ;====================================================================
 	BANKSEL	    OPTION_REG
-	BCF	    OPTION_REG,T0CS	; TOCS = 0  Utilizo el clock interno
-	BCF	    OPTION_REG,T0SE	; TOSE = 0  Activo por flanco de subida
-	BCF	    OPTION_REG,PSA	; PSA = 0   Activo el prescaler para TMR0
-	BSF	    OPTION_REG,PS2	; CONFIGURO EL PRESCALER 1:256
+	BCF	    OPTION_REG,T0CS	; TOCS = 0  Se utiliza el clock interno
+	BCF	    OPTION_REG,T0SE	; TOSE = 0  Se activa por flanco de subida
+	BCF	    OPTION_REG,PSA	; PSA = 0   Se activa el prescaler para TMR0
+	BSF	    OPTION_REG,PS2	; Se configura el PRESCALER 1:256
 	BSF	    OPTION_REG,PS1	; TMR=61 da 50ms, 10 veces, 0,5s
 	BSF	    OPTION_REG,PS0	;
-   
+	
+;====================================================================
+    ; Se configura EUSART
+;====================================================================
+	BANKSEL	    SPBRG
+	MOVLW	    D'25'		; Baud rate = 9600bps
+	MOVWF	    SPBRG		; a 4MHZ
+	MOVLW	    B'00100100'		; Configures TXSTA as 8 bit transmission,
+	MOVWF	    TXSTA		; transmit enabled, async mode, high speed baud rate
+	BANKSEL	    RCSTA
+	MOVLW	    B'10000000'
+	MOVWF	    RCSTA		; Se habilita serial port
+
 ;====================================================================
     ;IE
 ;====================================================================
 	BANKSEL	    PIE1
-	BSF	    PIE1,ADIE		; Habilito las int por Receptor ADC
-	BSF	    INTCON,PEIE		; Habilito las int por Perifericos
+	BSF	    PIE1,ADIE		; Se habilita las int por Receptor ADC
+	BCF	    PIE1,TXIE		; Se deshabilita las int por EUSART 
+	BSF	    INTCON,PEIE		; Se habilita las int por Perifericos
 	BANKSEL	    PIR1
-	BCF	    PIR1, ADIF		; Limpio flag de int de ADC
+	BCF	    PIR1,ADIF		; Se limpia flag de int de ADC
     
 ;====================================================================
     ;Inicializacon variables de control
 ;====================================================================
 	CLRF	    PORTD
-	CLRF	    CONDICION		; Establezco condicion en cero (Aun no hay dato para procesar)
+	CLRF	    CONDICION		; Se setea condicion en cero (Aun no hay dato para procesar)
 	MOVLW	    D'01'		
-        MOVWF	    CONDEUSAR		; Establezco condicion de eusar en uno (Listo para usar)
+        MOVWF	    CONDEUSAR		; Se setea condicion de eusar en uno (Listo para usar)
         MOVLW	    D'61'
-        MOVWF	    TMR0		; Cargo el valor de TMR0
+        MOVWF	    TMR0		; Se carga el valor de TMR0
 	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
         BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
-        BSF	    INTCON,GIE		; Habilito las int Globales
+        BSF	    INTCON,GIE		; Se habilita las interrupciones Globales
     
 
     
@@ -108,6 +121,7 @@ SUMAR
 	BTFSS	    FLAG,0		; Se verifica si se debe seguir intentado sumar leds
 	GOTO	    MOSTRARLED		; Si no es necesario se prenden los leds correspondientes
 	DECFSZ	    CONTAUX		; Caso contrario, se decrementa CONTAUX y si no da cero se vuelve a iterar
+	
 	GOTO	    SUMAR
 
 ; Actualiza el valor de PORTD y vuelve al programa principal
@@ -115,6 +129,7 @@ MOSTRARLED
 	MOVF	    CANTLED,W
 	CALL	    TABLA
 	MOVWF	    PORTD
+
 	GOTO	    PROGRAMA
 
 ; AUX: Se encarga de comparar el resultado del ADC con el valor de referencia y
@@ -153,6 +168,9 @@ INTERRUPCION
 	CALL	    ISTIMER		; Si T0IF está en 1 fue TIMER0 y llamo a ISTIMER
 	BTFSC	    PIR1,ADIF		; Interrumpió ADC?
 	CALL	    ISADC		; Si ADIF está en 1 fue ADC y llamo a ISADC
+	MOVLW	    0x01
+	BTFSC	    PIR1,TXIF		; Interrumpió EUSART?
+	CALL	    ISEUSART		; Si ADIF está en 1 fue ADC y llamo a ISADC
 	
 	SWAPF	    STATUS_TEMP, W	; Se recupera el contexto
 	MOVWF	    STATUS
@@ -165,7 +183,7 @@ ISTIMER
 	MOVLW	    D'61'
 	MOVWF	    TMR0
 	INCF	    CONTADOR,F
-	MOVLW	    D'3'
+	MOVLW	    D'10'
 	SUBWF	    CONTADOR,W
 	BTFSS	    STATUS,Z		; ¿Se realizo 10 timer0?
 	RETURN				; Si aun no se realizo 10 iteracionde seguidasd de timer0 se retorna
@@ -177,17 +195,30 @@ ISTIMER
 ISADC
 	BCF	    PIR1, ADIF		; Se limpia el flag de int de ADC
 	MOVF	    ADRESH,W
-	MOVWF	    RESULTADO		; Movemos el valor obtenido a resultado
+	MOVWF	    RESULTADO		; Se mueve el valor obtenido a resultado
 	MOVLW	    D'01'
 	MOVWF	    CONDICION		; Se setea  condicion en 1 (Nuevo valor a procesar)
 	MOVLW	    D'61'
 	MOVWF	    TMR0
 	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
 	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
-	;BTFSS	    CONDEUSAR,0		; Si CONDEUSAR es 1 esta listo para iniciar transferencia
+	BTFSS	    CONDEUSAR,0		; Si CONDEUSAR es 1 esta listo para iniciar transferencia
 	RETURN
-	;CLRF	    CONDEUSAR
-	;MOVWF	    TXREG
-	;RETURN
+	CLRF	    CONDEUSAR
+	MOVF	    RESULTADO,W
+	;MOVLW	    0x41
+	MOVWF	    TXREG
+	BANKSEL	    PIE1
+	BSF	    PIE1,TXIE		; Se habilita las int por EUSART 
+	BANKSEL	    PORTD
+	RETURN
+	
+ISEUSART
+	MOVLW	    D'01'
+	MOVWF	    CONDEUSAR
+	BANKSEL	    PIE1
+	BCF	    PIE1,TXIE		; Se deshabilita las int por EUSART 
+	BANKSEL	    PORTD
+	RETURN
 	
 END
