@@ -124,42 +124,44 @@ SUMAR
 	DECFSZ	    CONTAUX		; Caso contrario, se decrementa CONTAUX y si no da cero se vuelve a iterar
 	GOTO	    SUMAR
 
-; Actualiza el valor de PORTD y vuelve al programa principal
+; Actualiza el valor de PORTD
 MOSTRARLED
 	MOVF	    CANTLED,W
 	CALL	    TABLA
 	MOVWF	    PORTD
 EUSAR
-	CLRF	    CENTENAS
-	CLRF	    DECENAS
+	CLRF	    CENTENAS		; Se limpia el contador de centanas
+	CLRF	    DECENAS		; Se limpia el contador de decenas
 AUMCEN
 	MOVLW	    D'100'
-	CALL	    AUX2
-	MOVWF	    FLAG
-	ADDWF	    CENTENAS
-	BTFSC	    FLAG,0
-	GOTO	    AUMCEN
+	CALL	    AUX2		; Se llama rutina auxiliar para saber si aumentar el contador
+	MOVWF	    FLAG		; Se guarda el valor de retorno de la rutina en FLAG
+	ADDWF	    CENTENAS,F		; Se suma el valor de retorno al contador de centenas
+	BTFSC	    FLAG,0		; Si FLAG es 0, se terminó de contar las centenas y se pasa a las decenas
+	GOTO	    AUMCEN		; Si FLAG es 1, todavia no se terminaron de contar las centenas y se hace una iteracion mas
 AUMDEC
 	MOVLW	    D'10'
-	CALL	    AUX2
-	MOVWF	    FLAG
-	ADDWF	    DECENAS
-	BTFSC	    FLAG,0
-	GOTO	    AUMDEC
-	MOVLW	    0x30
+	CALL	    AUX2		; Llama rutina auxiliar para saber si aumentar el contador
+	MOVWF	    FLAG		; Se guarda el valor de retorno de la rutina en FLAG
+	ADDWF	    DECENAS		; Se suma el valor de retorno al contador de decenas
+	BTFSC	    FLAG,0		; Si FLAG es 0, se terminó de contar las decenas
+	GOTO	    AUMDEC		; Si FLAG es 1, todavia no se terminaron de contar las decenas y se hace una iteracion mas
+					; Lo que queda en el RESULTADO son las unidades
+	MOVLW	    0x30		; Se codifican los valores a transmitir en ASCII
 	ADDWF	    CENTENAS,F
 	ADDWF	    DECENAS,F
 	ADDWF	    RESULTADO,F
-	MOVLW	    CENTENAS
-	MOVWF	    FSR
+	MOVLW	    CENTENAS		
+	MOVWF	    FSR			   
 	MOVLW	    D'04'
-	MOVWF	    CONTAUX		; Se carga el bucle con 4
+	MOVWF	    CONTAUX		; Se setea un bucle para realizar 4 iteraciones
 BUCSEND
-	CALL	    SEND
-	INCF	    FSR
+	CALL	    SEND		; Se envia el valor cargado en el INDF
+	INCF	    FSR			; Como las CENT,DEC,RES y un espacio estan en posiciones de memoria contiguas
+					; Se incrementa fsr y se realizan las 4 iteraciones
 	DECFSZ	    CONTAUX
 	GOTO	    BUCSEND
-	GOTO	    PROGRAMA
+	GOTO	    PROGRAMA		; Al terminar de enviar los datos se vuelve al programa
 
 ; AUX: Se encarga de comparar el resultado del ADC con el valor de referencia y
 ; se aumenta la cantidad de led si resultado >= referencia.
@@ -172,11 +174,11 @@ AUX
 	RETLW	    D'01'
 	
 AUX2
-	SUBWF	    RESULTADO,W
+	SUBWF	    RESULTADO,W		; si RESULTADO < W -> C=0 -> se terminó de contar 
 	BTFSS	    STATUS,C
-	RETLW	    D'00'
-	MOVWF	    RESULTADO
-	RETLW	    D'01'
+	RETLW	    D'00'		; Si se terminó de contar se retorna un 1 en W
+	MOVWF	    RESULTADO		; Si no se terminó de contar se actualiza el valor de resultado
+	RETLW	    D'01'		; y se retorna un 1
 
 SEND
 	MOVF	    INDF,W
