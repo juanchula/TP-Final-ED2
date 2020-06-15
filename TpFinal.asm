@@ -14,6 +14,8 @@ CONTADOR    EQU	    0x27
 NUM	    EQU	    0x28
 CONTAUX	    EQU	    0x29
 FLAG	    EQU	    0x30
+DECENAS	    EQU	    0x31
+CENTENAS    EQU	    0x32
 	    
 org	0x00
 goto	SETEO
@@ -121,7 +123,6 @@ SUMAR
 	BTFSS	    FLAG,0		; Se verifica si se debe seguir intentado sumar leds
 	GOTO	    MOSTRARLED		; Si no es necesario se prenden los leds correspondientes
 	DECFSZ	    CONTAUX		; Caso contrario, se decrementa CONTAUX y si no da cero se vuelve a iterar
-	
 	GOTO	    SUMAR
 
 ; Actualiza el valor de PORTD y vuelve al programa principal
@@ -129,6 +130,54 @@ MOSTRARLED
 	MOVF	    CANTLED,W
 	CALL	    TABLA
 	MOVWF	    PORTD
+EUSAR
+	CLRF	    CENTENAS
+	CLRF	    DECENAS
+AUMCEN
+	MOVLW	    D'100'
+	CALL	    AUX2
+	MOVWF	    FLAG
+	ADDWF	    CENTENAS
+	BTFSC	    FLAG,0
+	GOTO	    AUMCEN
+AUMDEC
+	MOVLW	    D'10'
+	CALL	    AUX2
+	MOVWF	    FLAG
+	ADDWF	    DECENAS
+	BTFSC	    FLAG,0
+	GOTO	    AUMDEC
+	BSF	    STATUS, RP0		;banco 1
+	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
+	GOTO	    $-1
+	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
+	MOVF	    CENTENAS,W
+	ADDLW	    0x30
+	MOVWF	    TXREG
+	BSF	    STATUS, RP0		;banco 1
+	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
+	GOTO	    $-1
+	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
+	MOVF	    DECENAS,W
+	ADDLW	    0x30
+	MOVWF	    TXREG
+	BSF	    STATUS, RP0		;banco 1
+	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
+	GOTO	    $-1
+	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
+	MOVF	    RESULTADO,W
+	ADDLW	    0x30
+	MOVWF	    TXREG
+	BSF	    STATUS, RP0		;banco 1
+	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
+	GOTO	    $-1
+	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
+	MOVLW	    0x20
+	MOVWF	    TXREG
+	BSF	    STATUS, RP0		;banco 1
+	BTFSS	    TXSTA, TRMT		;chequea si TRMT está vacío
+	GOTO	    $-1
+	BCF	    STATUS, RP0		;bank 0, si TRMT está en 1
 
 	GOTO	    PROGRAMA
 
@@ -140,6 +189,13 @@ AUX
 	BTFSS	    STATUS,C
 	RETLW	    D'00'
 	INCF	    CANTLED,F
+	RETLW	    D'01'
+	
+AUX2
+	SUBWF	    RESULTADO,W
+	BTFSS	    STATUS,C
+	RETLW	    D'00'
+	MOVWF	    RESULTADO
 	RETLW	    D'01'
 
 ; Codifica la cantidad de leds que se debe mostrar, en el valor que se le debe dar a PORTD
@@ -154,6 +210,7 @@ TABLA
 	RETLW	    B'00111111'
 	RETLW	    B'01111111'
 	RETLW	    B'11111111'
+	
 
 	
 ;====================================================================
@@ -169,8 +226,7 @@ INTERRUPCION
 	BTFSC	    PIR1,ADIF		; Interrumpió ADC?
 	CALL	    ISADC		; Si ADIF está en 1 fue ADC y llamo a ISADC
 	MOVLW	    0x01
-	BTFSC	    PIR1,TXIF		; Interrumpió EUSART?
-	CALL	    ISEUSART		; Si ADIF está en 1 fue ADC y llamo a ISADC
+;	CALL	    ISEUSART		; Si ADIF está en 1 fue ADC y llamo a ISADC
 	
 	SWAPF	    STATUS_TEMP, W	; Se recupera el contexto
 	MOVWF	    STATUS
@@ -183,7 +239,7 @@ ISTIMER
 	MOVLW	    D'61'
 	MOVWF	    TMR0
 	INCF	    CONTADOR,F
-	MOVLW	    D'10'
+	MOVLW	    D'15'
 	SUBWF	    CONTADOR,W
 	BTFSS	    STATUS,Z		; ¿Se realizo 10 timer0?
 	RETURN				; Si aun no se realizo 10 iteracionde seguidasd de timer0 se retorna
@@ -202,23 +258,7 @@ ISADC
 	MOVWF	    TMR0
 	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
 	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
-	BTFSS	    CONDEUSAR,0		; Si CONDEUSAR es 1 esta listo para iniciar transferencia
 	RETURN
-	CLRF	    CONDEUSAR
-	MOVF	    RESULTADO,W
-	;MOVLW	    0x41
-	MOVWF	    TXREG
-	BANKSEL	    PIE1
-	BSF	    PIE1,TXIE		; Se habilita las int por EUSART 
-	BANKSEL	    PORTD
-	RETURN
-	
-ISEUSART
-	MOVLW	    D'01'
-	MOVWF	    CONDEUSAR
-	BANKSEL	    PIE1
-	BCF	    PIE1,TXIE		; Se deshabilita las int por EUSART 
-	BANKSEL	    PORTD
-	RETURN
+
 	
 END
