@@ -70,11 +70,14 @@ SETEO
 	BANKSEL	    SPBRG
 	MOVLW	    D'25'		; Baud rate = 9600bps
 	MOVWF	    SPBRG		; a 4MHZ
-	MOVLW	    B'00100100'		; Se configura TXSTA para transmitir 8 bits,
-	MOVWF	    TXSTA		; modo asincronico y alta velocidad
+	BCF	    TXSTA,TX9		; Se enviaran solo 8 bits
+	BSF	    TXSTA,TXEN		; Se habilita la transmision
+	BCF	    TXSTA,SYNC		; Se setea en modo asincrono
+	BSF	    TXSTA,BRGH		; Se setea en alta velocidad
+	BANKSEL	    BAUDCTL
+	BCF	    BAUDCTL,BRG16	; Se usa el generador de baudios de 8-bit
 	BANKSEL	    RCSTA
-	MOVLW	    B'10000000'
-	MOVWF	    RCSTA		; Se habilita port serial (EUSART)
+	BSF	    RCSTA,SPEN		; Se habilita port serial (EUSART)
 
 ;====================================================================
     ; IE
@@ -251,5 +254,4 @@ ISADC
 	BCF	    INTCON,T0IF 	; Se limpia bandera de interrucion por TIMER0
 	BSF	    INTCON,T0IE 	; Se habilita interrupción por desbordamiento de TIMER0
 	RETURN
-	
 END
